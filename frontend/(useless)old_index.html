@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Atlas Vision — 视觉感知平台</title>
+<script src="/static/js/socket.io.min.js"></script>
+<style>
+:root{--bg:#060810;--bg1:#0c1120;--bg2:#111827;--bg3:#1a2234;--border:#1e2d44;--accent:#00f5a0;--accent2:#00b8ff;--accent3:#ff4d6d;--accent4:#f5a623;--text:#e2e8f0;--text2:#94a3b8;--text3:#4a5568;--glow:0 0 12px rgba(0,245,160,.35);--glow2:0 0 12px rgba(0,184,255,.35);--glow3:0 0 12px rgba(255,77,109,.35);--font-mono:'Courier New',Courier,monospace;--font-main:'Microsoft YaHei','PingFang SC',sans-serif;--rad:6px;--sidebar:275px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-main)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,rgba(0,0,0,.04) 0px,rgba(0,0,0,.04) 1px,transparent 1px,transparent 3px)}
+#root{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:var(--sidebar);min-width:var(--sidebar);height:100vh;background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+#sidebar::-webkit-scrollbar{width:4px}#sidebar::-webkit-scrollbar-thumb{background:var(--border)}
+.sidebar-logo{padding:14px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.logo-h1{font-size:13px;font-family:var(--font-mono);color:var(--accent);font-weight:700;letter-spacing:1px}
+.logo-sub{font-size:10px;color:var(--text3);font-family:var(--font-mono)}
+.sb-section{padding:12px 14px;border-bottom:1px solid var(--border)}
+.sb-label{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);font-family:var(--font-mono);margin-bottom:9px}
+.status-row{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s}
+.dot.ok{background:var(--accent);box-shadow:var(--glow)}.dot.err{background:var(--accent3);box-shadow:var(--glow3)}.dot.warn{background:var(--accent4)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 12px;border-radius:var(--rad);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--font-main);transition:all .18s;width:100%;margin-bottom:5px;font-weight:500}
+.btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow)}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+.btn.primary:hover{box-shadow:0 0 20px rgba(0,245,160,.5);filter:brightness(1.08)}
+.btn.danger{border-color:var(--accent3);color:var(--accent3)}.btn.danger:hover{background:var(--accent3);color:#fff;box-shadow:var(--glow3)}
+.btn:disabled{opacity:.4;cursor:default}.btn-group{display:grid;grid-template-columns:1fr 1fr;gap:6px}.btn-group .btn{margin-bottom:0}
+select,input[type=range]{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:var(--rad);padding:6px 8px;font-size:12px;margin-bottom:7px;outline:none;font-family:var(--font-main)}
+select:focus{border-color:var(--accent2)}input[type=range]{padding:3px 0;cursor:pointer;accent-color:var(--accent)}
+.field-label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.mode-pill{padding:7px 4px;border-radius:var(--rad);font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--bg2);color:var(--text2);text-align:center;transition:all .15s;user-select:none}
+.mode-pill:hover{border-color:var(--accent);color:var(--accent)}.mode-pill.sel{border-color:var(--accent);background:rgba(0,245,160,.08);color:var(--accent)}
+.drop-zone{border:1.5px dashed var(--border);border-radius:var(--rad);padding:14px;text-align:center;cursor:pointer;transition:all .18s;margin-bottom:7px;color:var(--text3);font-size:12px}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);color:var(--accent)}.dz-icon{font-size:22px;margin-bottom:3px}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+#topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg1);flex-shrink:0}
+.topbar-left,.topbar-right{display:flex;align-items:center;gap:10px}
+.stat-chip{display:flex;align-items:center;gap:5px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad);padding:4px 9px;font-family:var(--font-mono);font-size:11px;white-space:nowrap}
+.stat-chip .lbl{color:var(--text3)}.stat-chip .val{color:var(--accent);font-weight:700}.stat-chip .val.b{color:var(--accent2)}.stat-chip .val.y{color:var(--accent4)}.stat-chip .val.w{color:var(--text2)}
+#view-area{flex:1;display:flex;overflow:hidden}
+#canvas-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);position:relative;overflow:hidden}
+#grid-bg{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3}
+#video-img{max-width:100%;max-height:100%;object-fit:contain;position:relative;z-index:1;border:1px solid var(--border);border-radius:4px}
+#placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:2}
+#placeholder .ph-icon{font-size:52px;opacity:.2}#placeholder p{color:var(--text3);font-size:13px}#placeholder.hidden{display:none}
+.corner{position:absolute;width:18px;height:18px;border-color:var(--accent2);border-style:solid;opacity:.6}
+.corner-tl{top:10px;left:10px;border-width:2px 0 0 2px}.corner-tr{top:10px;right:10px;border-width:2px 2px 0 0}.corner-bl{bottom:10px;left:10px;border-width:0 0 2px 2px}.corner-br{bottom:10px;right:10px;border-width:0 2px 2px 0}
+@keyframes pulse-c{0%,100%{opacity:.6}50%{opacity:1;box-shadow:var(--glow2)}}.streaming .corner{animation:pulse-c 2s infinite}
+#det-panel{width:250px;min-width:250px;border-left:1px solid var(--border);background:var(--bg1);display:flex;flex-direction:column;overflow:hidden}
+.panel-title{padding:11px 14px;border-bottom:1px solid var(--border);font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);font-family:var(--font-mono);display:flex;align-items:center;justify-content:space-between}
+#det-list{flex:1;overflow-y:auto;padding:6px}#det-list::-webkit-scrollbar{width:3px}#det-list::-webkit-scrollbar-thumb{background:var(--border)}
+.det-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rad);padding:7px 9px;margin-bottom:5px;display:flex;align-items:center;gap:7px;animation:fadeIn .15s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(6px)}to{opacity:1;transform:none}}
+.det-color{width:9px;height:9px;border-radius:2px;flex-shrink:0}.det-info{flex:1;min-width:0}.det-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.det-meta{font-size:10px;color:var(--text3);font-family:var(--font-mono);margin-top:1px}.det-conf{font-family:var(--font-mono);font-size:11px;color:var(--accent)}.conf-bar{height:2px;background:var(--bg3);border-radius:1px;margin-top:3px}.conf-bar-fill{height:100%;border-radius:1px;transition:width .3s}
+#cls-panel{overflow-y:auto;padding:8px;display:none}.cls-row{display:flex;align-items:center;gap:7px;margin-bottom:6px}.cls-rank{font-family:var(--font-mono);font-size:10px;color:var(--text3);width:16px}.cls-name{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cls-bar-wrap{width:70px;background:var(--bg3);border-radius:2px;height:4px}.cls-bar{height:100%;background:var(--accent2);border-radius:2px;transition:width .4s}.cls-val{font-family:var(--font-mono);font-size:10px;color:var(--accent2);width:30px;text-align:right}
+#fps-chart-wrap{padding:8px 14px;border-top:1px solid var(--border)}#fps-chart-title{font-size:9px;color:var(--text3);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;margin-bottom:5px}canvas#fps-chart{display:block;width:100%!important;height:55px!important}
+#bottombar{height:34px;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--border);background:var(--bg1);font-family:var(--font-mono);font-size:10px;color:var(--text3);flex-shrink:0}#bottombar .tag{color:var(--accent)}
+#toast-container{position:fixed;bottom:44px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--rad);padding:9px 14px;font-size:12px;min-width:180px;max-width:300px;animation:toastIn .22s ease;pointer-events:auto}
+.toast.err{border-left-color:var(--accent3)}.toast.warn{border-left-color:var(--accent4)}
+@keyframes toastIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(16px)}}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}@keyframes spin{to{transform:rotate(360deg)}}
+#loading-overlay{position:fixed;inset:0;background:rgba(6,8,16,.92);z-index:50000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}#loading-overlay.hidden{display:none}#loading-overlay .spinner{width:34px;height:34px;border-width:3px}#loading-overlay p{font-family:var(--font-mono);color:var(--accent);font-size:13px}
+.dist-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:rgba(245,166,35,.1);border:1px solid var(--accent4);border-radius:3px;padding:1px 5px;color:var(--accent4);font-family:var(--font-mono)}
+</style>
+</head>
+<body>
+<div id="loading-overlay"><div class="spinner"></div><p>正在连接 Atlas Vision Server...</p></div>
+<div id="root">
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <div><div class="logo-h1">ATLAS VISION</div><div class="logo-sub">200I DK A2 · YOLO 推理平台</div></div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">连接状态</div>
+      <div class="status-row"><div class="dot" id="ws-dot"></div><span id="ws-label" style="font-size:12px">连接中...</span></div>
+      <div class="status-row"><div class="dot" id="model-dot"></div><span id="model-label" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">未加载模型</span></div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">模型管理</div>
+      <label class="field-label">选择已有模型</label>
+      <select id="model-select"><option value="">— 请选择 .onnx 模型 —</option></select>
+      <button class="btn primary" onclick="loadModel()">⬆ 加载模型</button>
+      <button class="btn" onclick="refreshModels()" style="margin-bottom:8px">🔄 刷新列表</button>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="dzDragOver(event)" ondragleave="dzDragLeave(event)" ondrop="dzDrop(event)">
+        <div class="dz-icon">📁</div><div>拖放 .onnx / label.txt</div><div style="font-size:10px;margin-top:3px;color:var(--text3)">或点击上传</div>
+      </div>
+      <input type="file" id="file-input" style="display:none" multiple accept=".onnx,.txt" onchange="uploadFiles(this.files)"/>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">检测参数</div>
+      <label class="field-label">置信度阈值 &nbsp;<span id="conf-val" style="font-family:var(--font-mono);color:var(--accent)">0.45</span></label>
+      <input type="range" id="conf-slider" min="0.1" max="0.95" step="0.01" value="0.45" oninput="document.getElementById('conf-val').textContent=parseFloat(this.value).toFixed(2);debouncedConfig()"/>
+      <label class="field-label">NMS IOU &nbsp;<span id="iou-val" style="font-family:var(--font-mono);color:var(--accent)">0.45</span></label>
+      <input type="range" id="iou-slider" min="0.1" max="0.95" step="0.01" value="0.45" oninput="document.getElementById('iou-val').textContent=parseFloat(this.value).toFixed(2);debouncedConfig()"/>
+      <label class="field-label">过滤目标类别</label>
+      <select id="class-filter" onchange="debouncedConfig()"><option value="">全部类别</option></select>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">功能模式</div>
+      <div class="mode-grid">
+        <div class="mode-pill sel" data-mode="detection"     onclick="setMode(this)">🎯 目标检测</div>
+        <div class="mode-pill"    data-mode="classification" onclick="setMode(this)">🏷 分类识别</div>
+        <div class="mode-pill"    data-mode="distance"       onclick="setMode(this)">📏 距离估计</div>
+        <div class="mode-pill"    data-mode="all"            onclick="setMode(this)">⚡ 全部模式</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">摄像头控制</div>
+      <label class="field-label">摄像头编号</label>
+      <select id="cam-select">
+        <option value="0">/dev/video0 (默认)</option>
+        <option value="1">/dev/video1</option>
+        <option value="2">/dev/video2</option>
+      </select>
+      <div class="btn-group">
+        <button class="btn primary" id="start-btn" onclick="startStream()">▶ 开始</button>
+        <button class="btn danger"  id="stop-btn"  onclick="stopStream()" disabled>■ 停止</button>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">图片检测</div>
+      <div class="drop-zone" id="img-drop" onclick="document.getElementById('img-input').click()" ondragover="dzDragOver(event)" ondragleave="dzDragLeave(event)" ondrop="imgDrop(event)">
+        <div class="dz-icon">🖼</div><div>上传图片检测</div><div style="font-size:10px;margin-top:3px;color:var(--text3)">jpg / png / bmp</div>
+      </div>
+      <input type="file" id="img-input" style="display:none" accept="image/*" onchange="detectImage(this.files[0])"/>
+    </div>
+    <div id="fps-chart-wrap"><div id="fps-chart-title">实时帧率 (FPS)</div><canvas id="fps-chart" height="55"></canvas></div>
+  </aside>
+  <main id="main">
+    <div id="topbar">
+      <div class="topbar-left">
+        <div class="stat-chip"><span class="lbl">FPS</span><span class="val" id="stat-fps">0.0</span></div>
+        <div class="stat-chip"><span class="lbl">推理</span><span class="val b" id="stat-inf">0ms</span></div>
+        <div class="stat-chip"><span class="lbl">目标</span><span class="val y" id="stat-det">0</span></div>
+        <div class="stat-chip"><span class="lbl">帧数</span><span class="val w" id="stat-frame">0</span></div>
+        <div class="stat-chip"><span class="lbl">模式</span><span class="val b" id="stat-mode">detection</span></div>
+      </div>
+      <div class="topbar-right">
+        <div class="stat-chip"><span class="lbl">板卡</span><span class="val y">Atlas 200I DK A2</span></div>
+        <div class="stat-chip"><span class="val w" id="clock">--:--:--</span></div>
+      </div>
+    </div>
+    <div id="view-area">
+      <div id="canvas-panel">
+        <div id="canvas-wrap">
+          <div id="grid-bg"></div>
+          <div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div><div class="corner corner-br"></div>
+          <img id="video-img" alt="视频流" style="display:none"/>
+          <div id="placeholder">
+            <div class="ph-icon">📷</div>
+            <p>选择模型 → 点击 <strong style="color:var(--accent)">▶ 开始</strong> 启动摄像头</p>
+            <p style="font-size:11px;margin-top:4px">或上传图片进行离线检测</p>
+          </div>
+        </div>
+      </div>
+      <div id="det-panel">
+        <div class="panel-title">
+          <span id="panel-title-text">检测结果</span>
+          <span id="det-count-badge" style="color:var(--accent);font-family:var(--font-mono)">0</span>
+        </div>
+        <div id="det-list"><div id="det-empty" style="padding:20px;text-align:center;color:var(--text3);font-size:12px">等待检测结果...</div></div>
+        <div id="cls-panel"></div>
+      </div>
+    </div>
+    <div id="bottombar">
+      <span><span class="tag">●</span> <span id="bottom-status">未连接</span></span>
+      <span>|</span><span id="bottom-model">无模型</span>
+      <span>|</span><span id="bottom-time">--</span>
+      <span style="flex:1"></span>
+      <span>Atlas Vision v1.0</span><span>|</span><span>Ascend 310B NPU</span>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script>
+const API='';
+let socket=null,isStreaming=false,currentMode='detection';
+let fpsHistory=new Array(60).fill(0),fpsCtx=null,cfgTimer=null;
+const PALETTE=['#00f5a0','#00b8ff','#ff4d6d','#f5a623','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6','#4ade80'];
+const clrOf=id=>PALETTE[Math.abs(parseInt(id)||0)%PALETTE.length];
+const $=id=>document.getElementById(id);
+const setTxt=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+const setDot=(id,cls)=>{const e=$(id);if(e)e.className='dot '+cls;};
+const hideLoading=()=>$('loading-overlay').classList.add('hidden');
+
+window.addEventListener('load',()=>{
+  initFpsChart();initSocket();refreshModels();
+  setInterval(updateClock,1000);updateClock();
+  setInterval(()=>socket?.connected&&socket.emit('ping_stats',{}),2000);
+});
+
+function initSocket(){
+  try{ socket=io({transports:['websocket','polling'],timeout:6000,reconnectionAttempts:5,reconnectionDelay:2000}); }
+  catch(e){ toast('Socket.IO 初始化失败: '+e.message,'err'); hideLoading(); return; }
+  socket.on('connect',()=>{
+    setDot('ws-dot','ok');setTxt('ws-label','已连接 ('+socket.id.slice(0,6)+')');
+    setTxt('bottom-status','已连接服务器');hideLoading();toast('服务器连接成功');
+  });
+  socket.on('disconnect',()=>{
+    setDot('ws-dot','err');setTxt('ws-label','连接断开');setTxt('bottom-status','连接断开');
+    toast('与服务器断开','err');if(isStreaming)handleStreamStop();
+  });
+  socket.on('connect_error',()=>{
+    setDot('ws-dot','err');setTxt('ws-label','连接失败');hideLoading();
+    toast('无法连接服务器，请确认后端已启动','err');
+  });
+  socket.on('frame',data=>handleFrame(data));
+  socket.on('stream_error',data=>{toast('摄像头错误: '+data.error,'err');handleStreamStop();});
+  socket.on('stats',data=>updateStats(data));
+}
+
+function handleFrame(data){
+  const img=$('video-img');
+  img.src='data:image/jpeg;base64,'+data.image;
+  img.style.display='block';
+  $('placeholder').classList.add('hidden');
+  updateStats(data);renderDetections(data.detections||[]);
+  fpsHistory.push(data.fps||0);
+  if(fpsHistory.length>60)fpsHistory.shift();
+  drawFpsChart();
+}
+
+function updateStats(d){
+  if(d.fps!==undefined)setTxt('stat-fps',parseFloat(d.fps).toFixed(1));
+  if(d.inference_ms!==undefined)setTxt('stat-inf',parseFloat(d.inference_ms).toFixed(0)+'ms');
+  if(d.detection_count!==undefined)setTxt('stat-det',d.detection_count);
+  if(d.frame_count!==undefined)setTxt('stat-frame',d.frame_count);
+  if(d.mode){setTxt('stat-mode',d.mode);currentMode=d.mode;}
+  setTxt('bottom-time',new Date().toLocaleTimeString('zh'));
+}
+
+function renderDetections(dets){
+  const list=$('det-list'),empty=$('det-empty');
+  $('det-count-badge').textContent=dets.length;
+  if(currentMode==='classification'){renderCls(dets);return;}
+  $('cls-panel').style.display='none';list.style.display='block';
+  if(!dets.length){list.innerHTML='';list.appendChild(empty);empty.style.display='block';return;}
+  empty.style.display='none';
+  const cards=list.querySelectorAll('.det-card');
+  if(cards.length!==dets.length){list.innerHTML='';dets.forEach(d=>list.appendChild(makeCard(d)));}
+  else{cards.forEach((c,i)=>updateCard(c,dets[i]));}
+}
+
+function makeCard(d){
+  const el=document.createElement('div');el.className='det-card';
+  const c=clrOf(d.class_id);
+  el.innerHTML=`<div class="det-color" style="background:${c}"></div>
+    <div class="det-info">
+      <div class="det-name">${d.class_name}</div>
+      <div class="det-meta">#${d.class_id}${d.distance_cm?` &nbsp;<span class="dist-badge">📏${d.distance_cm}cm</span>`:''}</div>
+      <div class="conf-bar"><div class="conf-bar-fill" style="width:${(d.confidence*100).toFixed(0)}%;background:${c}"></div></div>
+    </div>
+    <div class="det-conf">${(d.confidence*100).toFixed(0)}%</div>`;
+  return el;
+}
+
+function updateCard(card,d){
+  const c=clrOf(d.class_id);
+  card.querySelector('.det-name').textContent=d.class_name;
+  const fill=card.querySelector('.conf-bar-fill');
+  if(fill){fill.style.width=(d.confidence*100).toFixed(0)+'%';fill.style.background=c;}
+  card.querySelector('.det-conf').textContent=(d.confidence*100).toFixed(0)+'%';
+  const meta=card.querySelector('.det-meta');
+  if(meta)meta.innerHTML=`#${d.class_id}${d.distance_cm?` &nbsp;<span class="dist-badge">📏${d.distance_cm}cm</span>`:''}`;
+}
+
+function renderCls(dets){
+  const cls=$('cls-panel'),list=$('det-list');
+  cls.style.display='block';list.style.display='none';
+  const agg={};
+  dets.forEach(d=>{if(!agg[d.class_name]||agg[d.class_name]<d.confidence)agg[d.class_name]=d.confidence;});
+  const sorted=Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  cls.innerHTML=sorted.map(([name,conf],i)=>`
+    <div class="cls-row">
+      <div class="cls-rank">#${i+1}</div>
+      <div class="cls-name">${name}</div>
+      <div class="cls-bar-wrap"><div class="cls-bar" style="width:${(conf*100).toFixed(0)}%"></div></div>
+      <div class="cls-val">${(conf*100).toFixed(0)}%</div>
+    </div>`).join('')||'<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">无结果</div>';
+}
+
+async function refreshModels(){
+  try{
+    const r=await fetch(API+'/api/models');const d=await r.json();
+    const sel=$('model-select');
+    sel.innerHTML='<option value="">— 请选择 .onnx 模型 —</option>';
+    d.models.forEach(m=>{const o=document.createElement('option');o.value=m.name;o.textContent=`${m.name} (${m.size_mb}MB)${m.has_labels?' ✓':''}`;sel.appendChild(o);});
+    if(d.count===0)toast('models/ 目录下未发现 .onnx 模型','warn');
+    else toast(`发现 ${d.count} 个模型`);
+  }catch(e){toast('获取模型列表失败','err');}
+}
+
+async function loadModel(){
+  const name=$('model-select').value;
+  if(!name){toast('请先选择模型','warn');return;}
+  toast('正在加载模型...');
+  try{
+    const r=await fetch(API+'/api/load_model',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model_name:name,conf_threshold:parseFloat($('conf-slider').value),iou_threshold:parseFloat($('iou-slider').value)})});
+    const d=await r.json();
+    if(d.success){
+      setDot('model-dot','ok');setTxt('model-label',name);setTxt('bottom-model',name);
+      toast(`✅ 模型加载成功：${d.num_classes} 类`);
+      if(d.classes)populateClassFilter(d.classes);
+    }else{toast('加载失败: '+d.error,'err');setDot('model-dot','err');}
+  }catch(e){toast('请求失败','err');}
+}
+
+function populateClassFilter(cls){
+  const sel=$('class-filter');sel.innerHTML='<option value="">全部类别</option>';
+  cls.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+}
+
+async function uploadFiles(files){
+  if(!files.length)return;
+  const form=new FormData();Array.from(files).forEach(f=>form.append(f.name,f));
+  toast('正在上传...');
+  try{const r=await fetch(API+'/api/upload/model',{method:'POST',body:form});const d=await r.json();if(d.success){toast('上传成功');refreshModels();}}
+  catch(e){toast('上传失败','err');}
+}
+
+async function startStream(){
+  if(isStreaming)return;
+  const cam=parseInt($('cam-select').value);
+  try{
+    const r=await fetch(API+'/api/stream/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({camera_index:cam})});
+    const d=await r.json();
+    if(d.success){
+      isStreaming=true;$('start-btn').disabled=true;$('stop-btn').disabled=false;
+      $('canvas-wrap').classList.add('streaming');toast('摄像头已启动');
+    }else{toast('启动失败: '+d.error,'err');}
+  }catch(e){toast('启动请求失败','err');}
+}
+
+async function stopStream(){
+  await fetch(API+'/api/stream/stop',{method:'POST'});
+  handleStreamStop();toast('摄像头已停止','warn');
+}
+
+function handleStreamStop(){
+  isStreaming=false;$('start-btn').disabled=false;$('stop-btn').disabled=true;
+  $('canvas-wrap').classList.remove('streaming');
+}
+
+async function detectImage(file){
+  if(!file)return;
+  const form=new FormData();form.append('image',file);
+  const dz=$('img-drop');dz.innerHTML='<div class="spinner"></div> 检测中...';
+  try{
+    const r=await fetch(API+'/api/detect/image',{method:'POST',body:form});
+    const d=await r.json();
+    if(d.success){
+      const img=$('video-img');img.src='data:image/jpeg;base64,'+d.image_b64;img.style.display='block';
+      $('placeholder').classList.add('hidden');
+      renderDetections(d.detections||[]);
+      updateStats({inference_ms:d.inference_ms,detection_count:d.detection_count});
+      toast(`✅ 检测完成：${d.detection_count} 个目标，${d.inference_ms}ms`);
+    }else{toast('检测失败: '+d.error,'err');}
+  }catch(e){toast('请求失败','err');}
+  finally{dz.innerHTML='<div class="dz-icon">🖼</div><div>上传图片检测</div><div style="font-size:10px;margin-top:3px;color:var(--text3)">jpg / png / bmp</div>';}
+}
+
+function setMode(el){
+  document.querySelectorAll('.mode-pill').forEach(p=>p.classList.remove('sel'));
+  el.classList.add('sel');currentMode=el.dataset.mode;setTxt('stat-mode',currentMode);
+  const clsP=$('cls-panel'),detL=$('det-list');
+  if(currentMode==='classification'){clsP.style.display='block';detL.style.display='none';}
+  else{clsP.style.display='none';detL.style.display='block';}
+  debouncedConfig();
+}
+
+function debouncedConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(pushConfig,400);}
+async function pushConfig(){
+  try{await fetch(API+'/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({conf_threshold:parseFloat($('conf-slider').value),iou_threshold:parseFloat($('iou-slider').value),mode:currentMode,target_class:$('class-filter').value||null})});}
+  catch(e){}
+}
+
+function initFpsChart(){
+  const c=$('fps-chart');c.width=c.offsetWidth||220;c.height=55;fpsCtx=c.getContext('2d');
+  window.addEventListener('resize',()=>{c.width=c.offsetWidth;drawFpsChart();});drawFpsChart();
+}
+function drawFpsChart(){
+  if(!fpsCtx)return;
+  const ctx=fpsCtx,W=ctx.canvas.width,H=ctx.canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const max=Math.max(...fpsHistory,30);
+  const pts=fpsHistory.map((v,i)=>[i*W/(fpsHistory.length-1),H-(v/max)*(H-4)]);
+  ctx.strokeStyle='rgba(30,45,68,.7)';ctx.lineWidth=1;
+  [.25,.5,.75].forEach(f=>{ctx.beginPath();ctx.moveTo(0,H*f);ctx.lineTo(W,H*f);ctx.stroke();});
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(0,245,160,.28)');g.addColorStop(1,'rgba(0,245,160,.02)');
+  ctx.beginPath();ctx.moveTo(pts[0][0],H);pts.forEach(([x,y])=>ctx.lineTo(x,y));ctx.lineTo(pts[pts.length-1][0],H);ctx.closePath();ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));ctx.strokeStyle='rgba(0,245,160,.9)';ctx.lineWidth=1.5;ctx.stroke();
+  const cur=fpsHistory[fpsHistory.length-1];ctx.fillStyle='#00f5a0';ctx.font="bold 11px 'Courier New',monospace";ctx.fillText(cur.toFixed(1)+' fps',3,13);
+}
+
+function dzDragOver(e){e.preventDefault();e.currentTarget.classList.add('dragover');}
+function dzDragLeave(e){e.currentTarget.classList.remove('dragover');}
+function dzDrop(e){e.preventDefault();e.currentTarget.classList.remove('dragover');uploadFiles(e.dataTransfer.files);}
+function imgDrop(e){e.preventDefault();e.currentTarget.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)detectImage(f);}
+function updateClock(){$('clock').textContent=new Date().toLocaleTimeString('zh');}
+function toast(msg,type='ok',dur=3500){
+  const tc=$('toast-container'),t=document.createElement('div');
+  t.className='toast'+(type==='err'?' err':type==='warn'?' warn':'');
+  t.textContent=msg;tc.appendChild(t);
+  setTimeout(()=>{t.style.animation='toastOut .22s ease forwards';setTimeout(()=>t.remove(),240);},dur);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Atlas Vision — 轻量版</title>
+<script src="/static/js/socket.io.min.js"></script>
+<style>
+:root{
+  --bg:#0b1020;--bg1:#111827;--bg2:#182235;--bd:#263246;
+  --ok:#22c55e;--err:#ef4444;--warn:#f59e0b;--blue:#38bdf8;
+  --text:#e5e7eb;--muted:#94a3b8;--radius:6px;--sidebar:250px;--detw:220px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:"Microsoft YaHei","PingFang SC",sans-serif}
+button,input,select{font:inherit}
+#root{display:flex;height:100vh}
+#sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg1);border-right:1px solid var(--bd);overflow-y:auto}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+.sidebar-logo{padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:center}
+.logo-icon{width:32px;height:32px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#001018;font-weight:700}
+.logo-h1{font-size:13px;font-weight:700}
+.logo-sub{font-size:11px;color:var(--muted)}
+.sb-section{padding:12px 14px;border-bottom:1px solid var(--bd)}
+.sb-label{font-size:11px;color:var(--muted);margin-bottom:10px}
+.status-row{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#64748b;flex-shrink:0}
+.dot.ok{background:var(--ok)}.dot.err{background:var(--err)}.dot.warn{background:var(--warn)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px 10px;border:1px solid var(--bd);background:var(--bg2);color:var(--text);border-radius:var(--radius);cursor:pointer;margin-bottom:6px}
+.btn.primary{background:var(--ok);color:#00150a;border-color:var(--ok);font-weight:700}
+.btn.danger{border-color:#7f1d1d;color:#fecaca;background:#2a1313}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-group{display:grid;grid-template-columns:1fr 1fr;gap:6px}.btn-group .btn{margin-bottom:0}
+.field-label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+select,input[type=range]{width:100%;margin-bottom:8px;padding:7px 8px;border-radius:var(--radius);border:1px solid var(--bd);background:var(--bg2);color:var(--text)}
+input[type=range]{padding:0}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mode-pill{padding:8px 6px;border:1px solid var(--bd);background:var(--bg2);border-radius:var(--radius);text-align:center;font-size:12px;cursor:pointer;color:var(--muted);user-select:none}
+.mode-pill.sel{border-color:var(--blue);color:#fff;background:#142235}
+.drop-zone{border:1px dashed #475569;border-radius:var(--radius);padding:14px 10px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:8px}
+.dz-icon{font-size:20px;margin-bottom:4px}
+#topbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--bd);background:var(--bg1);gap:8px;overflow:auto}
+.topbar-left,.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+.stat-chip{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--bd);background:var(--bg2);border-radius:var(--radius);font-size:12px;white-space:nowrap}
+.stat-chip .lbl{color:var(--muted)}
+.stat-chip .val{font-weight:700;color:#f8fafc}
+#view-area{flex:1;display:flex;min-height:0}
+#canvas-panel{flex:1;display:flex;min-width:0}
+#canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:#050914;overflow:hidden}
+#video-img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--bd);display:none}
+#placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted)}
+#placeholder.hidden{display:none}
+#det-panel{width:var(--detw);min-width:var(--detw);border-left:1px solid var(--bd);background:var(--bg1);display:flex;flex-direction:column;min-height:0}
+.panel-title{padding:10px 12px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+#det-list,#cls-panel{flex:1;overflow-y:auto;padding:8px}
+.det-card{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bd);background:var(--bg2);border-radius:var(--radius);margin-bottom:6px}
+.det-color{width:9px;height:9px;border-radius:2px;flex-shrink:0}.det-info{flex:1;min-width:0}
+.det-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.det-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.det-conf{font-size:11px;color:#cbd5e1;white-space:nowrap}
+.conf-bar{height:3px;background:#0f172a;border-radius:3px;margin-top:5px;overflow:hidden}
+.conf-bar-fill{height:100%}
+.cls-row{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.cls-rank{width:18px;font-size:11px;color:var(--muted)}
+.cls-name{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cls-bar-wrap{width:70px;height:5px;background:#0f172a;border-radius:3px;overflow:hidden}
+.cls-bar{height:100%;background:var(--blue)}
+.cls-val{width:34px;text-align:right;font-size:11px;color:#cbd5e1}
+#fps-chart-wrap{display:none !important}
+#bottombar{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--bd);background:var(--bg1);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden}
+#bottombar .tag{color:var(--ok)}
+#toast-container{position:fixed;right:12px;bottom:12px;z-index:9999;display:flex;flex-direction:column;gap:6px}
+.toast{background:#111827;border:1px solid var(--bd);border-left:3px solid var(--ok);padding:8px 10px;border-radius:var(--radius);font-size:12px;max-width:280px}
+.toast.err{border-left-color:var(--err)}.toast.warn{border-left-color:var(--warn)}
+#loading-overlay{position:fixed;inset:0;background:rgba(2,6,23,.88);z-index:10000;display:flex;align-items:center;justify-content:center;color:#e2e8f0}
+#loading-overlay.hidden{display:none}
+.dist-badge{display:inline-block;border:1px solid #7c5a13;color:#fbbf24;padding:0 4px;border-radius:4px;margin-left:4px;font-size:10px}
+@media (max-width: 980px){
+  #sidebar{width:220px;min-width:220px}
+  #det-panel{display:none}
+}
+</style>
+</head>
+<body>
+<div id="loading-overlay"><p>正在连接 Atlas Vision Server...</p></div>
+<div id="root">
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="logo-h1">ATLAS VISION</div>
+        <div class="logo-sub">轻量版前端 · Atlas 200I DK A2</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">连接状态</div>
+      <div class="status-row"><div class="dot" id="ws-dot"></div><span id="ws-label">连接中...</span></div>
+      <div class="status-row"><div class="dot" id="model-dot"></div><span id="model-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">未加载模型</span></div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">模型管理</div>
+      <label class="field-label">选择已有模型</label>
+      <select id="model-select"><option value="">— 请选择 .onnx 模型 —</option></select>
+      <button class="btn primary" onclick="loadModel()">⬆ 加载模型</button>
+      <button class="btn" onclick="refreshModels()">🔄 刷新列表</button>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="dzDragOver(event)" ondragleave="dzDragLeave(event)" ondrop="dzDrop(event)">
+        <div class="dz-icon">📁</div>
+        <div>拖放 .onnx / label.txt</div>
+        <div style="font-size:11px;margin-top:4px">或点击上传</div>
+      </div>
+      <input type="file" id="file-input" style="display:none" multiple accept=".onnx,.txt" onchange="uploadFiles(this.files)"/>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">检测参数</div>
+      <label class="field-label">置信度阈值 <span id="conf-val">0.45</span></label>
+      <input type="range" id="conf-slider" min="0.1" max="0.95" step="0.01" value="0.45" oninput="document.getElementById('conf-val').textContent=parseFloat(this.value).toFixed(2);debouncedConfig()"/>
+      <label class="field-label">NMS IOU <span id="iou-val">0.45</span></label>
+      <input type="range" id="iou-slider" min="0.1" max="0.95" step="0.01" value="0.45" oninput="document.getElementById('iou-val').textContent=parseFloat(this.value).toFixed(2);debouncedConfig()"/>
+      <label class="field-label">过滤目标类别</label>
+      <select id="class-filter" onchange="debouncedConfig()"><option value="">全部类别</option></select>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">功能模式</div>
+      <div class="mode-grid">
+        <div class="mode-pill sel" data-mode="detection" onclick="setMode(this)">🎯 目标检测</div>
+        <div class="mode-pill" data-mode="classification" onclick="setMode(this)">🏷 分类识别</div>
+        <div class="mode-pill" data-mode="distance" onclick="setMode(this)">📏 距离估计</div>
+        <div class="mode-pill" data-mode="all" onclick="setMode(this)">⚡ 全部模式</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">摄像头控制</div>
+      <label class="field-label">摄像头编号</label>
+      <select id="cam-select">
+        <option value="0">/dev/video0 (默认)</option>
+        <option value="1">/dev/video1</option>
+        <option value="2">/dev/video2</option>
+      </select>
+      <div class="btn-group">
+        <button class="btn primary" id="start-btn" onclick="startStream()">▶ 开始</button>
+        <button class="btn danger" id="stop-btn" onclick="stopStream()" disabled>■ 停止</button>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">图片检测</div>
+      <div class="drop-zone" id="img-drop" onclick="document.getElementById('img-input').click()" ondragover="dzDragOver(event)" ondragleave="dzDragLeave(event)" ondrop="imgDrop(event)">
+        <div class="dz-icon">🖼</div>
+        <div>上传图片检测</div>
+        <div style="font-size:11px;margin-top:4px">jpg / png / bmp</div>
+      </div>
+      <input type="file" id="img-input" style="display:none" accept="image/*" onchange="detectImage(this.files[0])"/>
+    </div>
+
+    <div id="fps-chart-wrap"><canvas id="fps-chart"></canvas></div>
+  </aside>
+
+  <main id="main">
+    <div id="topbar">
+      <div class="topbar-left">
+        <div class="stat-chip"><span class="lbl">FPS</span><span class="val" id="stat-fps">0.0</span></div>
+        <div class="stat-chip"><span class="lbl">推理</span><span class="val" id="stat-inf">0ms</span></div>
+        <div class="stat-chip"><span class="lbl">目标</span><span class="val" id="stat-det">0</span></div>
+        <div class="stat-chip"><span class="lbl">帧数</span><span class="val" id="stat-frame">0</span></div>
+        <div class="stat-chip"><span class="lbl">模式</span><span class="val" id="stat-mode">detection</span></div>
+      </div>
+      <div class="topbar-right">
+        <div class="stat-chip"><span class="lbl">板卡</span><span class="val">Atlas 200I DK A2</span></div>
+        <div class="stat-chip"><span class="val" id="clock">--:--:--</span></div>
+      </div>
+    </div>
+
+    <div id="view-area">
+      <div id="canvas-panel">
+        <div id="canvas-wrap">
+          <img id="video-img" alt="视频流" decoding="async"/>
+          <div id="placeholder">
+            <div style="font-size:42px;opacity:.3">📷</div>
+            <p>选择模型 → 点击开始启动摄像头</p>
+            <p style="font-size:12px">或上传图片进行离线检测</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="det-panel">
+        <div class="panel-title">
+          <span id="panel-title-text">检测结果</span>
+          <span id="det-count-badge">0</span>
+        </div>
+        <div id="det-list"><div id="det-empty" style="padding:20px;text-align:center;color:var(--muted);font-size:12px">等待检测结果...</div></div>
+        <div id="cls-panel" style="display:none"></div>
+      </div>
+    </div>
+
+    <div id="bottombar">
+      <span><span class="tag">●</span> <span id="bottom-status">未连接</span></span>
+      <span>|</span><span id="bottom-model">无模型</span>
+      <span>|</span><span id="bottom-time">--</span>
+      <span style="flex:1"></span>
+      <span>Atlas Vision Lite</span><span>|</span><span>Ascend 310B NPU</span>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+
+<script>
+const API = '';
+const LITE_MODE = true;
+const UI_UPDATE_INTERVAL_MS = 200;
+const CONFIG_DEBOUNCE_MS = 500;
+const PING_INTERVAL_MS = 5000;
+const MAX_RENDER_DETS = 5;
+const PALETTE = ['#22c55e','#38bdf8','#ef4444','#f59e0b','#a78bfa','#14b8a6','#fb7185','#60a5fa'];
+
+let socket = null;
+let isStreaming = false;
+let currentMode = 'detection';
+let cfgTimer = null;
+let lastUiUpdate = 0;
+let lastDetKey = '';
+let lastToastAt = 0;
+
+const $ = id => document.getElementById(id);
+const clrOf = id => PALETTE[Math.abs(parseInt(id) || 0) % PALETTE.length];
+const setTxt = (id, v) => { const e = $(id); if (e && e.textContent !== String(v)) e.textContent = String(v); };
+const setDot = (id, cls) => { const e = $(id); const next = 'dot ' + cls; if (e && e.className !== next) e.className = next; };
+const hideLoading = () => $('loading-overlay').classList.add('hidden');
+
+window.addEventListener('load', () => {
+  initSocket();
+  refreshModels();
+  updateClock();
+  setInterval(updateClock, 1000);
+  setInterval(() => {
+    if (socket && socket.connected) socket.emit('ping_stats', {});
+  }, PING_INTERVAL_MS);
+});
+
+function initSocket(){
+  try {
+    socket = io({
+      transports: ['websocket'],
+      timeout: 6000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000
+    });
+  } catch (e) {
+    toast('Socket.IO 初始化失败: ' + e.message, 'err');
+    hideLoading();
+    return;
+  }
+
+  socket.on('connect', () => {
+    setDot('ws-dot', 'ok');
+    setTxt('ws-label', '已连接 (' + socket.id.slice(0, 6) + ')');
+    setTxt('bottom-status', '已连接服务器');
+    hideLoading();
+    toast('服务器连接成功');
+  });
+
+  socket.on('disconnect', () => {
+    setDot('ws-dot', 'err');
+    setTxt('ws-label', '连接断开');
+    setTxt('bottom-status', '连接断开');
+    if (isStreaming) handleStreamStop();
+    toast('与服务器断开', 'err');
+  });
+
+  socket.on('connect_error', () => {
+    setDot('ws-dot', 'err');
+    setTxt('ws-label', '连接失败');
+    hideLoading();
+    toast('无法连接服务器，请确认后端已启动', 'err');
+  });
+
+  socket.on('frame', data => handleFrame(data));
+  socket.on('stream_error', data => {
+    toast('摄像头错误: ' + (data && data.error ? data.error : '未知错误'), 'err');
+    handleStreamStop();
+  });
+  socket.on('stats', data => {
+    const now = Date.now();
+    if (now - lastUiUpdate >= UI_UPDATE_INTERVAL_MS) {
+      updateStats(data || {});
+      lastUiUpdate = now;
+    }
+  });
+}
+
+function handleFrame(data){
+  if (!data) return;
+
+  const img = $('video-img');
+  if (data.image) img.src = 'data:image/jpeg;base64,' + data.image;
+  if (img.style.display !== 'block') img.style.display = 'block';
+  $('placeholder').classList.add('hidden');
+
+  const now = Date.now();
+  if (now - lastUiUpdate >= UI_UPDATE_INTERVAL_MS) {
+    updateStats(data);
+    renderDetectionsLite(data.detections || []);
+    lastUiUpdate = now;
+  }
+}
+
+function updateStats(d){
+  if (d.fps !== undefined) setTxt('stat-fps', Number(d.fps).toFixed(1));
+  if (d.inference_ms !== undefined) setTxt('stat-inf', Number(d.inference_ms).toFixed(0) + 'ms');
+  if (d.detection_count !== undefined) setTxt('stat-det', d.detection_count);
+  if (d.frame_count !== undefined) setTxt('stat-frame', d.frame_count);
+  if (d.mode) {
+    currentMode = d.mode;
+    setTxt('stat-mode', d.mode);
+  }
+}
+
+function renderDetectionsLite(dets){
+  const trimmed = Array.isArray(dets) ? dets.slice(0, MAX_RENDER_DETS) : [];
+  const key = currentMode + '|' + trimmed.map(d => {
+    return [d.class_id, d.class_name, Math.round((d.confidence || 0) * 100), d.distance_cm || ''].join(':');
+  }).join('|');
+  if (key === lastDetKey) return;
+  lastDetKey = key;
+
+  if (currentMode === 'classification') {
+    renderCls(trimmed);
+  } else {
+    renderDetections(trimmed);
+  }
+}
+
+function renderDetections(dets){
+  const list = $('det-list');
+  const cls = $('cls-panel');
+  cls.style.display = 'none';
+  list.style.display = 'block';
+  setTxt('det-count-badge', dets.length);
+
+  if (!dets.length) {
+    list.innerHTML = '<div id="det-empty" style="padding:20px;text-align:center;color:var(--muted);font-size:12px">等待检测结果...</div>';
+    return;
+  }
+
+  list.innerHTML = dets.map(d => {
+    const c = clrOf(d.class_id);
+    const conf = Math.round((d.confidence || 0) * 100);
+    const dist = d.distance_cm ? `<span class="dist-badge">📏${d.distance_cm}cm</span>` : '';
+    return `
+      <div class="det-card">
+        <div class="det-color" style="background:${c}"></div>
+        <div class="det-info">
+          <div class="det-name">${escapeHtml(d.class_name || 'unknown')}</div>
+          <div class="det-meta">#${escapeHtml(d.class_id)} ${dist}</div>
+          <div class="conf-bar"><div class="conf-bar-fill" style="width:${conf}%;background:${c}"></div></div>
+        </div>
+        <div class="det-conf">${conf}%</div>
+      </div>`;
+  }).join('');
+}
+
+function renderCls(dets){
+  const cls = $('cls-panel');
+  const list = $('det-list');
+  cls.style.display = 'block';
+  list.style.display = 'none';
+
+  const agg = {};
+  dets.forEach(d => {
+    const name = d.class_name || 'unknown';
+    const conf = Number(d.confidence || 0);
+    if (!agg[name] || agg[name] < conf) agg[name] = conf;
+  });
+
+  const sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, MAX_RENDER_DETS);
+  setTxt('det-count-badge', sorted.length);
+
+  cls.innerHTML = sorted.length ? sorted.map(([name, conf], i) => {
+    const pct = Math.round(conf * 100);
+    return `
+      <div class="cls-row">
+        <div class="cls-rank">#${i + 1}</div>
+        <div class="cls-name">${escapeHtml(name)}</div>
+        <div class="cls-bar-wrap"><div class="cls-bar" style="width:${pct}%"></div></div>
+        <div class="cls-val">${pct}%</div>
+      </div>`;
+  }).join('') : '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">无结果</div>';
+}
+
+async function refreshModels(){
+  try {
+    const r = await fetch(API + '/api/models');
+    const d = await r.json();
+    const sel = $('model-select');
+    sel.innerHTML = '<option value="">— 请选择 .onnx 模型 —</option>';
+    (d.models || []).forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.name;
+      o.textContent = `${m.name} (${m.size_mb}MB)${m.has_labels ? ' ✓' : ''}`;
+      sel.appendChild(o);
+    });
+    if ((d.count || 0) === 0) toast('models/ 目录下未发现 .onnx 模型', 'warn');
+  } catch (e) {
+    toast('获取模型列表失败', 'err');
+  }
+}
+
+async function loadModel(){
+  const name = $('model-select').value;
+  if (!name) {
+    toast('请先选择模型', 'warn');
+    return;
+  }
+
+  toast('正在加载模型...');
+  try {
+    const r = await fetch(API + '/api/load_model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_name: name,
+        conf_threshold: parseFloat($('conf-slider').value),
+        iou_threshold: parseFloat($('iou-slider').value)
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      setDot('model-dot', 'ok');
+      setTxt('model-label', name);
+      setTxt('bottom-model', name);
+      if (d.classes) populateClassFilter(d.classes);
+      toast(`模型加载成功：${d.num_classes} 类`);
+    } else {
+      setDot('model-dot', 'err');
+      toast('加载失败: ' + (d.error || '未知错误'), 'err');
+    }
+  } catch (e) {
+    toast('请求失败', 'err');
+  }
+}
+
+function populateClassFilter(cls){
+  const sel = $('class-filter');
+  sel.innerHTML = '<option value="">全部类别</option>';
+  (cls || []).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c;
+    o.textContent = c;
+    sel.appendChild(o);
+  });
+}
+
+async function uploadFiles(files){
+  if (!files || !files.length) return;
+  const form = new FormData();
+  Array.from(files).forEach(f => form.append(f.name, f));
+  toast('正在上传...');
+  try {
+    const r = await fetch(API + '/api/upload/model', { method: 'POST', body: form });
+    const d = await r.json();
+    if (d.success) {
+      toast('上传成功');
+      refreshModels();
+    } else {
+      toast('上传失败: ' + (d.error || '未知错误'), 'err');
+    }
+  } catch (e) {
+    toast('上传失败', 'err');
+  }
+}
+
+async function startStream(){
+  if (isStreaming) return;
+  const cam = parseInt($('cam-select').value, 10);
+  try {
+    const r = await fetch(API + '/api/stream/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ camera_index: cam })
+    });
+    const d = await r.json();
+    if (d.success) {
+      isStreaming = true;
+      $('start-btn').disabled = true;
+      $('stop-btn').disabled = false;
+      toast('摄像头已启动');
+    } else {
+      toast('启动失败: ' + (d.error || '未知错误'), 'err');
+    }
+  } catch (e) {
+    toast('启动请求失败', 'err');
+  }
+}
+
+async function stopStream(){
+  try {
+    await fetch(API + '/api/stream/stop', { method: 'POST' });
+  } catch (e) {}
+  handleStreamStop();
+  toast('摄像头已停止', 'warn');
+}
+
+function handleStreamStop(){
+  isStreaming = false;
+  $('start-btn').disabled = false;
+  $('stop-btn').disabled = true;
+}
+
+async function detectImage(file){
+  if (!file) return;
+  const form = new FormData();
+  form.append('image', file);
+  const dz = $('img-drop');
+  dz.innerHTML = '<div class="dz-icon">⏳</div><div>检测中...</div>';
+  try {
+    const r = await fetch(API + '/api/detect/image', { method: 'POST', body: form });
+    const d = await r.json();
+    if (d.success) {
+      const img = $('video-img');
+      img.src = 'data:image/jpeg;base64,' + d.image_b64;
+      img.style.display = 'block';
+      $('placeholder').classList.add('hidden');
+      updateStats({ inference_ms: d.inference_ms, detection_count: d.detection_count });
+      renderDetectionsLite(d.detections || []);
+      toast(`检测完成：${d.detection_count} 个目标，${d.inference_ms}ms`);
+    } else {
+      toast('检测失败: ' + (d.error || '未知错误'), 'err');
+    }
+  } catch (e) {
+    toast('请求失败', 'err');
+  } finally {
+    dz.innerHTML = '<div class="dz-icon">🖼</div><div>上传图片检测</div><div style="font-size:11px;margin-top:4px">jpg / png / bmp</div>';
+  }
+}
+
+function setMode(el){
+  document.querySelectorAll('.mode-pill').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel');
+  currentMode = el.dataset.mode;
+  setTxt('stat-mode', currentMode);
+  lastDetKey = '';
+
+  if (currentMode === 'classification') {
+    $('cls-panel').style.display = 'block';
+    $('det-list').style.display = 'none';
+  } else {
+    $('cls-panel').style.display = 'none';
+    $('det-list').style.display = 'block';
+  }
+  debouncedConfig();
+}
+
+function debouncedConfig(){
+  clearTimeout(cfgTimer);
+  cfgTimer = setTimeout(pushConfig, CONFIG_DEBOUNCE_MS);
+}
+
+async function pushConfig(){
+  try {
+    await fetch(API + '/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conf_threshold: parseFloat($('conf-slider').value),
+        iou_threshold: parseFloat($('iou-slider').value),
+        mode: currentMode,
+        target_class: $('class-filter').value || null
+      })
+    });
+  } catch (e) {}
+}
+
+function dzDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function dzDragLeave(e){ e.currentTarget.classList.remove('dragover'); }
+function dzDrop(e){ e.preventDefault(); e.currentTarget.classList.remove('dragover'); uploadFiles(e.dataTransfer.files); }
+function imgDrop(e){ e.preventDefault(); e.currentTarget.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) detectImage(f); }
+function updateClock(){
+  const t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  setTxt('clock', t);
+  setTxt('bottom-time', t);
+}
+
+function toast(msg, type = 'ok', dur = 2600){
+  const now = Date.now();
+  if (now - lastToastAt < 300 && type === 'ok') return;
+  lastToastAt = now;
+
+  const tc = $('toast-container');
+  while (tc.children.length >= 3) tc.removeChild(tc.firstChild);
+  const t = document.createElement('div');
+  t.className = 'toast' + (type === 'err' ? ' err' : type === 'warn' ? ' warn' : '');
+  t.textContent = msg;
+  tc.appendChild(t);
+  setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, dur);
+}
+
+function escapeHtml(v){
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>
